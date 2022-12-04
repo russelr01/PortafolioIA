@@ -1,0 +1,114 @@
+---
+title: "Reporte Final: Venta de televisores"
+author: "Russel Rosique"
+date: "2022-11-22"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+INTRODUCCIÓN
+
+Se tiene como registro el número total de ventas de televisores de los últimos 4 años. Existe además una división trimestral para el total de ventas por año, es decir un total de 16 trimestres de ventas. Dicho esto, se busca predecir de la forma más precisa posible, la cantidad de ventas que habrá para el 5to año. 
+
+Se analizó que la mejor forma de plantear este escencario es como una serie de tiempo. Se considera que es la mejor forma de obtener la predicción deseada para el 5to año. Se utilizarán herramientas estadísticas en R para analizar las siguientes preguntas:
+
+¿Qué tendencia muestra la serie de tiempo?
+¿La serie de tiempo muestra estacionalidad?
+¿Cuál será el número de ventas para el 5to año?
+¿Qué tanto error se observa en la predicción final?
+
+```{r}
+t = 1:16
+ventas = c(4.8,4.1,6.0,6.5,5.8,5.2,6.8,7.4,6.0,5.6,7.5,7.8,6.3,5.9,8.0,8.4)
+```
+
+Primero se realiza la gráfica de dispersión de la serie de tiempo, donde se logra obeservar una serie con tendencia y estacionalidad. En esta gráfica se alcanza a ver de primera instancia el cambio en el número de ventas según la estación, así como el patrón general que sigue este número de acuerdo al año y la estación. No obstante, para corrobar lo visto, se realizarán posteriores consultas a los datos. 
+
+```{r}
+plot(t, ventas, type ="o", col ="red", main = "Ventas por año")
+```
+
+Posteriormente, se realiza la descomposición, y se observa con mayor claridad la tendencia y estacionalidad de esta serie de tiempo. Observamos una tendencia hacia arriba, con una fuerte estacionalidad.
+
+```{r}
+X =ts(ventas, frequency = 4, start(c(2016, 1))) 
+plot.ts(X, col = "red")
+D = decompose(X, type="multiplicative")
+plot(D, col ="blue")
+```
+
+```{r}
+N = lm(ventas~t)
+plot(t, ventas, type= "l", col = "red")
+abline(N, col = "blue")
+N
+```
+
+```{r}
+D$seasonal
+```
+
+
+A partir de esto se implementa una regresión lineal de las ventas desestacionalizadas.
+Los resultados se ven a continuación, y se observa una gráfica de ventas desestacionalizadas que se puede explicar sumamente bien con el modelo lineal. Esto se reafirma con el coeficiente de r^2 de 0.92 (Muy alto).
+
+```{r}
+ventas_desestacionalizadas = (D$x)/(D$seasonal)
+x3 = 1:16
+y3 = ventas_desestacionalizadas
+N3 = lm(y3~x3)
+N3
+plot(x3, y3, type = "l")
+abline(N3, col = "red")
+```
+
+```{r}
+summary(N3)
+```
+
+Finalmente se realiza la predicción de las ventas en el quinto año. Para hacer esta predicción, se utiliza la función arrojada en la regresión lineal anterior, se sustituye la 'x' correspondiente, y se multiplica por el índice de estacionalidad correspondiente. De esta forma la predicción será precisa ya que sigue la función lineal, pero realiza el ajuste según la estación en la que se encuentre. Una vez realizado lo anterior se obtienen los siguientes resultados.
+
+```{r}
+f = function(x) {5.1080 + 0.1474*x}
+# Los ídices estacionales son: 
+a1 = D$seasonal[1]
+a2 =D$seasonal[2]
+a3 = D$seasonal[3]
+a4 = D$seasonal[4];
+f(17)*a1*1000
+f(18)*a2*1000
+f(19)*a3*1000
+f(20)*a4*1000
+```
+```{r}
+predicciones = c(ventas, f(17)*a1, f(18)*a2, f(19)*a3, f(20)*a4)
+t2 = 1:20
+plot(t2, predicciones, type ="o", col ="red", main = "Ventas por año")
+```
+
+Las predicción se puede apreciar en la gráfica con los puntos de los meses 17-20 (Los trimestres del 5to año). Se considera que los resultados son precisos y tienen bastante sentido, ya que a simple vista continuan con la tendencia y estacionalidad histórica que se tenía. No obstante, a continuación se evaluará la precisión de los resultados.
+
+Por último, para evaluar al modelo, se obtiene el CME^2 de las predicciones, y se obtiene como resultado 0.033. Este es un gran indicador de que el modelo predictivo para la serie de tiempo es sumamente preciso ya que el error es muy bajo.
+
+```{r}
+e = NA
+for(i in 1:4) {e[i] = ventas[i] - f(i)*D$seasonal[i]}
+for(i in 5:8) {e[i] = ventas[i] - f(i)*D$seasonal[i-4]}
+for(i in 9:12) {e[i] = ventas[i] - f(i)*D$seasonal[i-8]}
+for(i in 13:16) {e[i] = ventas[i] - f(i)*D$seasonal[i-12]}
+
+```
+```{r}
+CME2=mean(e^2,na.rm="TRUE")
+CME2
+```
+
+
+CONCLUSIÓN
+
+En esta actividad se trabajó sobre una serie de tiempo con tendencia y estacionalidad, que consistía en ventas sobre trimestres. La herramienta de R de "decompose" fue de gran ayuda para obtener los índices estacionales de la serie de tiempo, y a partir de ellos poder realizar un modelo lineal y con esta función predecir las ventas para el quinto año. Al final se obtuvo la gráfica anterior, que ya con las predicciones del quinto año, se sigue observando la misma tendencia y estacionalidad de los primeros 4 años. Dicho esto, lo realizado en esta actividad es un método muy útil para realizar predicciones sobre series de tiempo similares a esta.

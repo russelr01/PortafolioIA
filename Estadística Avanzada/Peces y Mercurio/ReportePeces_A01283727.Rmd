@@ -1,0 +1,197 @@
+---
+title: 'Reporte Final: Peces y Mercurio'
+author: "Russel Rosique"
+date: "2022-12-04"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+RESUMEN DEL PROBLEMA
+
+La contaminación por mercurio de peces en el agua dulce comestibles es una amenaza directa contra nuestra salud. Se llevó a cabo un estudio reciente en 53 lagos de Florida con el fin de examinar los factores que influían en el nivel de contaminación por mercurio.
+
+INTRODUCCIÓN
+
+Anteriormente se trabajó con este conjunto de datos, en el cual se analizaron las variables, así como el peso que ejercía cada una sobre el nivel de mercurio en los peces. Utilizando algunas de las herramientas vistas en clase, así como la normal multivariada y los componentes principales, se responderá la siguiente pregunta: 
+
+¿Cuáles son las variables determinantes en la contaminación por mercurio de los peces?
+
+DESCRIPCIÓN DE LOS DATOS                                                                                                                                
+|--------------------------|------------------------------------------------------------------------------------------------------------------------------
+| X1              | Número de identificación                  |
+| X2              | Nombre del lago                           |
+| X3              | Alcalinidad                               |
+| X4              | PH                                        |
+| X5              | Calcio (mg/l)                             |
+| X6              | Clorofila (mg/l)                          |
+| X7              | concentración media de mercurio (parte por millón) en el tejido muscualar del grupo de peces estudiados en cada lago   
+                                                              |
+| X8              | Número de peces estudiados en el lago                                                                                      |
+| X9          | mínimo de la concentración de mercurio en cada grupo de peces
+                                                              |
+| X10 | máximo de la concentración de mercurio en cada grupo de peces                                                                          |
+| X11     | estimación (mediante regresión) de la concentración de mercurio en el pez de 3 años (o promedio de mercurio cuando la edad no está disponible)                                                                       |
+| X12     | indicador de la edad de los peces (0: jóvenes; 1: maduros)                                                                         |
+
+
+ANÁLISIS DE LA BASE DE DATOS
+
+```{r}
+df=read.csv("mercurio.csv")
+```
+
+El primer paso en esta análisis del conjunto de datos es la limpieza de los datos, para poder realizar las pruebas pertinentes de normalidad. De esta forma se podrán identificar a las variables con una distribución normal, así como una posible normal multivariada. Para realizar estas pruebas primero se tienen que separar a las variables que no son númericas continuas. Posteriormente obtener la matriz de covarianza y correlación con las variables numéricas restantes. 
+
+```{r}
+df = df[,c(-1,-2,-12)]
+```
+
+```{r}
+matCov = cov(df)
+matCor = cor(df)
+
+medias = colMeans(df)
+
+matCov
+matCor
+```
+
+Posterior a esto, se realizará el test de anderson-darling a todas las variables numéricas de la base de datos para encontrar aquellas que están distribuidas de forma normal.
+
+```{r}
+install.packages('nortest')
+library(nortest)
+```
+
+```{r}
+alcalinidad = df$X3
+ad.test(alcalinidad)
+```
+
+```{r}
+PH = df$X4
+ad.test(PH)
+```
+
+```{r}
+calcio = df$X5
+ad.test(calcio)
+```
+```{r}
+clorofila = df$X6
+ad.test(clorofila)
+```
+
+```{r}
+mediaMercurio = df$X7
+ad.test(mediaMercurio)
+```
+
+```{r}
+minMercurio = df$X9
+ad.test(minMercurio)
+```
+
+```{r}
+maxMercurio = df$X10
+ad.test(maxMercurio)
+```
+
+Tras realizar el test de anderson-darling en las variables numéricas continuas del conjunto, se concluye que existen 2 variables con normalidad: PH y máximo en la concentración de mercurio en cada grupo de peces.
+
+Una vez hecho lo anterior, se obtiene la Distancia de Mahalanobis, al igual que el gráfico Q-Q Plot multivariado para observar datos atipicos:
+
+```{r}
+p = length(df)
+
+#Distancia de Mahalanobis
+distance =  mahalanobis(df,medias,matCov)
+distance
+
+#Multinormalidad Test gráfico Q-Q Plot
+plot(qchisq(((1:nrow(df)) - 1/2)/nrow(df),df=p),sort( distance ))
+abline(a=0, b=1,col="red")
+```
+
+Se logra observar en la gráfica que existe una gran cantidad de datos atípicos. 
+
+Por esta razón, para el MVN test que se realizará a continuación, se dejará el argumento de 'showOutliers' como verdadero, y se utilizarán únicamente las variables las cuales su normalidad ya fue comprobada, es decir, PH y máximo de mercurio.
+
+```{r}
+library(MVN)
+df_norm = df[c("X4", "X10")]
+mvn(df_norm,mvn = "mardia", covariance = FALSE,showOutliers = TRUE)
+```
+Estos resultados indican que el nivel de PH, y el máximo de concentración de mercurio tienen una distribución normal multivariada.
+
+
+COMPONENTES PRINCIPALES
+
+Se realizarán una serie de pruebas para determinar los componentes principales de este conjunto de datos, y de esta forma obtener información con mayor pertinencia.
+
+```{r}
+library(corrplot)
+corrplot(matCor, type = 'lower')
+```
+
+En el plot anterior se puede observar la correlación de las distintas variables con un mapeo de calor. Como era de esperarse, la X9, X10, y X11 (Min. de mercurio, Max. de mercurio, y Estimación de mercurio respectivamente) tienen una alta correlación.
+
+A continuación se obtienen los componentes principales del conjunto de datos:
+
+```{r}
+eigenCov = eigen(matCov)
+
+lambdasCov = eigenCov$values
+varianzaCov = sum(diag(matCov))
+comp = lambdasCov/varianzaCov
+
+cat("C.P. Covarianza: ",cumsum(comp),"\n\n")
+```
+
+Se obtienen un total de 5 componentes que explican arriba del 99% de la varianza. Enseguida, utilizando las librerías de 'FactoMineR' y 'factoextra', se puede ver de forma gráfica la influencia de cada componente y la relación entre ellos.
+
+```{r}
+library(stats)
+library(factoextra)
+library(ggplot2)
+library(FactoMineR)
+library(factoextra)
+```
+
+
+```{r}
+cpS=princomp(df,cor=FALSE)
+cpaS=as.matrix(df)%*%cpS$loadings
+cpS$loadings
+```
+
+```{r}
+cp3 = PCA(df)
+fviz_pca_ind(cp3, col.ind = "blue", addEllipses = TRUE, repel = TRUE)
+```
+
+```{r}
+fviz_screeplot(cp3)
+```
+
+```{r}
+fviz_contrib(cp3, choice = c("var"))
+```
+
+En estas gráficas se puede ver la influencia de cada variable en los compontentes principales, así como la varianza explicada por cada compontente. En este caso, el primer componente es el que mayormente explica dicha varianza.
+
+
+CONCLUSIÓN
+
+En este proyecto, se tuvo la oportunidad de retomar un trabajo anterior, y expandirlo utilizando nuevas herramientas. De esta forma se puede ampliar el entendimiento del conjunto de datos dado. No obstante, se analiza que es un conjunto con muy pocas observaciones, por lo que aunque se obtuvieron resultados muy acertados, hace falta una gran cantidad de observaciones para determinar con certeza la causa o causas principales del problema de contamincación por mercurio en los peces. 
+
+No obstante, de todas formas se llegaron a varias conclusiones interesantes. Después de emplear herramientas para consultar normalidad multivariada y compontentes principales. Gracias a estas herramientas se llegó a la conclusión de que los factores más determinantes en la contaminación por mercurio en los peces son los niveles de alcalinidad y PH (variables que pasan la línea de contribución del primer componente), debido a sus valores dentro del análisis de componentes principales.
+
+ANEXOS
+
+https://github.com/russelr01/PortafolioIA
